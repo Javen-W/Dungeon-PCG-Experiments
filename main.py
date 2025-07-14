@@ -84,8 +84,7 @@ def compute_fitness(tilemap, start_pos, end_pos):
 
     # Dijkstra's distance
     graph = (tilemap == TILE_TYPES['PATH']) | (tilemap == TILE_TYPES['START']) | (tilemap == TILE_TYPES['END'])
-    dist_matrix = dijkstra(graph.astype(float), indices=start_pos, directed=False)
-    print(dist_matrix, start_pos, end_pos)
+    dist_matrix = dijkstra(graph.astype(float), indices=None, directed=False)
     path_length = dist_matrix[end_pos[0], end_pos[1]]
     if not np.isfinite(path_length):
         return 0.0
