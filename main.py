@@ -39,7 +39,7 @@ class Map:
 
     def place_tile(self, pos, tile_type):
         if 0 <= pos[0] < self.size and 0 <= pos[1] < self.size:
-            if tile_type != TILE_TYPES['START']:  # Prevent overwriting start
+            if tile_type != TILE_TYPES['START'] and pos != self.start_pos:  # Prevent overwriting start
                 self.grid[pos] = tile_type
                 self.last_pos = pos
                 self.step_count += 1
