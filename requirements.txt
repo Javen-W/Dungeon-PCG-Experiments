@@ -1,0 +1,5 @@
+pygame>=2.5.2
+numpy>=1.24.3
+neat-python>=0.92
+torch>=2.0.1
+scipy>=1.10.1
