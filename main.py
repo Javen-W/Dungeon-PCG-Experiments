@@ -128,15 +128,18 @@ class StdoutLogger:
 
 # Fitness function
 def compute_fitness(game_map):
-    # Check if end tile exists
     tilemap = game_map.grid
+    # Base fitness for placing tiles
+    fitness = 0.01 * game_map.step_count / MAX_STEPS  # Reward progress
+
+    # Check if end tile exists
     if not game_map.end_pos:
-        return 0.0
+        return fitness
 
     # Dijkstra's distance
     path_length = game_map.dijkstra_distance(game_map.end_pos)
     if not np.isfinite(path_length):
-        return 0.0
+        return fitness + 0.1  # Small bonus for placing END tile
     path_score = path_length / (GRID_SIZE * GRID_SIZE)
 
     # Room detection
@@ -150,7 +153,7 @@ def compute_fitness(game_map):
     balance_score = max(0, 1 - abs(path_ratio - 0.4) / 0.4)
 
     # Combine scores
-    fitness = 0.5 * path_score + 0.3 * room_score + 0.2 * balance_score
+    fitness += 0.5 * path_score + 0.3 * room_score + 0.2 * balance_score
     return fitness
 
 # Visualization function
