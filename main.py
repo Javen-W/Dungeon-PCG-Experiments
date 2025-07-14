@@ -54,7 +54,7 @@ class Map:
         def _search(t, v):
             nonlocal min_dist, passable
             # End cases
-            if (t not in passable) or (not passable[t]) or (v >= min_dist):
+            if (not passable[t]) or (v >= min_dist):
                 return
 
             # Update minimum distance
@@ -62,6 +62,7 @@ class Map:
                 min_dist = v
 
             # Recursive steps
+            passable[t] = False
             for n in self.get_valid_moves(t):
                 _search(n, v + 1)
 
@@ -126,15 +127,14 @@ class StdoutLogger:
         self.log.close()
 
 # Fitness function
-def compute_fitness(tilemap, start_pos, end_pos):
+def compute_fitness(game_map):
     # Check if end tile exists
-    if tilemap[end_pos[0], end_pos[1]] != TILE_TYPES['END']:
+    tilemap = game_map.grid
+    if not game_map.end_pos:
         return 0.0
 
     # Dijkstra's distance
-    graph = (tilemap == TILE_TYPES['PATH']) | (tilemap == TILE_TYPES['START']) | (tilemap == TILE_TYPES['END'])
-    dist_matrix = dijkstra(graph.astype(float), indices=None, directed=False)
-    path_length = dist_matrix[end_pos[0], end_pos[1]]
+    path_length = game_map.dijkstra_distance(game_map.end_pos)
     if not np.isfinite(path_length):
         return 0.0
     path_score = path_length / (GRID_SIZE * GRID_SIZE)
@@ -233,14 +233,14 @@ def eval_genome(genome, config, cnn):
             break
 
     # Compute fitness
-    end_pos = game_map.last_pos if game_map.grid[game_map.last_pos] == TILE_TYPES['END'] else (0, 0)
-    fitness = compute_fitness(game_map.grid, game_map.start_pos, end_pos)
+    game_map.end_pos = game_map.last_pos if game_map.grid[game_map.last_pos] == TILE_TYPES['END'] else None
+    fitness = compute_fitness(game_map)
     return fitness, game_map.grid
-
 
 # Main training loop
 def train_neat(resume_checkpoint=None):
     # Initialize CNN
+    torch.manual_seed(777)
     cnn = TileCNN()
 
     # Load NEAT configuration
