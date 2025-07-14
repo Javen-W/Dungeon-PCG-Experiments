@@ -1,3 +1,4 @@
+import sys
 import pygame
 import numpy as np
 import neat
@@ -18,8 +19,10 @@ MAX_STEPS = GRID_SIZE * GRID_SIZE  # Maximum tiles to place
 NUM_GENERATIONS = 100
 SAVE_DIR = "maps"
 CHECKPOINT_DIR = "checkpoints"
+LOG_DIR = "logs"
 os.makedirs(SAVE_DIR, exist_ok=True)
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+os.makedirs(LOG_DIR, exist_ok=True)
 
 # Map class to manage tilemap state
 class Map:
@@ -78,6 +81,24 @@ class TileCNN(nn.Module):
         x = x.view(x.size(0), -1)
         x = self.fc(x)
         return x
+
+# Custom stdout logger to capture console output and save to file
+class StdoutLogger:
+    def __init__(self, filename):
+        self.terminal = sys.stdout
+        self.log = open(filename, 'w')
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+        self.log.flush()
+
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+
+    def close(self):
+        self.log.close()
 
 # Fitness function
 def compute_fitness(tilemap, start_pos, end_pos):
@@ -207,12 +228,6 @@ def train_neat(resume_checkpoint=None):
         'neat.cfg'
     )
 
-    # Create population
-    pop = neat.Population(config)
-    pop.add_reporter(neat.StdOutReporter(True))
-    stats = neat.StatisticsReporter()
-    pop.add_reporter(stats)
-
     # Create or restore population
     if resume_checkpoint:
         pop = neat.Checkpointer.restore_checkpoint(resume_checkpoint)
@@ -230,6 +245,12 @@ def train_neat(resume_checkpoint=None):
     )
     pop.add_reporter(stats)
     pop.add_reporter(checkpointer)
+
+    # Set up logging
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = f"{LOG_DIR}/NEAT_{timestamp}.log"
+    stdout_logger = StdoutLogger(log_file)
+    sys.stdout = stdout_logger
 
     # Best genome tracking
     best_genome = None
