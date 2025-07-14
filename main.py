@@ -26,10 +26,13 @@ os.makedirs(LOG_DIR, exist_ok=True)
 
 # Map class to manage tilemap state
 class Map:
+    directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # Up, down, left, right
+
     def __init__(self, size, start_pos=None):
         self.size = size
         self.grid = np.zeros((size, size), dtype=int)  # Initialize with EMPTY tiles
         self.start_pos = start_pos if start_pos else (size // 2, size // 2)
+        self.end_pos = None
         self.grid[self.start_pos] = TILE_TYPES['START']
         self.last_pos = self.start_pos  # Last placed tile position
         self.step_count = 0
@@ -40,8 +43,31 @@ class Map:
                 self.grid[pos] = tile_type
                 self.last_pos = pos
                 self.step_count += 1
-            return True
+                return True
         return False
+
+    def dijkstra_distance(self, pos):
+        """Calculates Dijkstra distance from starting tile to target tile."""
+        min_dist = np.inf
+        passable = (self.grid == TILE_TYPES['PATH']) | (self.grid == TILE_TYPES['START']) | (self.grid == TILE_TYPES['END'])
+
+        def _search(t, v):
+            nonlocal min_dist, passable
+            # End cases
+            if (t not in passable) or (not passable[t]) or (v >= min_dist):
+                return
+
+            # Update minimum distance
+            if t == pos:
+                min_dist = v
+
+            # Recursive steps
+            for n in self.get_valid_moves(t):
+                _search(n, v + 1)
+
+        # Recursive distance search
+        _search(self.start_pos, 0)
+        return min_dist
 
     def get_local_view(self, pos):
         """Extract a 5x5 view centered at pos, padded if near edges."""
@@ -58,8 +84,7 @@ class Map:
     def get_valid_moves(self, pos):
         """Return valid cardinal direction moves (up, down, left, right)."""
         moves = []
-        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # Up, down, left, right
-        for di, dj in directions:
+        for di, dj in Map.directions:
             new_pos = (pos[0] + di, pos[1] + dj)
             if 0 <= new_pos[0] < self.size and 0 <= new_pos[1] < self.size:
                 moves.append(new_pos)
@@ -187,8 +212,7 @@ def eval_genome(genome, config, cnn):
         direction_scores = np.array(direction_probs)
         valid_indices = []
         valid_scores = []
-        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # Up, down, left, right
-        for idx, (di, dj) in enumerate(directions):
+        for idx, (di, dj) in enumerate(Map.directions):
             new_pos = (game_map.last_pos[0] + di, game_map.last_pos[1] + dj)
             if new_pos in valid_moves:
                 valid_indices.append(idx)
