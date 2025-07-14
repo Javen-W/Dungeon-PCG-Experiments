@@ -5,7 +5,7 @@ import neat
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from scipy.sparse.csgraph import dijkstra
+from scipy.special import softmax
 from scipy.ndimage import label
 import os
 from datetime import datetime
@@ -208,7 +208,7 @@ def eval_genome(genome, config, cnn):
         direction_probs = output[:4]  # Scores for up, down, left, right
         tile_probs = output[4:]  # Scores for tile types
 
-        # Select direction using argmax with validation
+        # Probabilistic direction selection
         valid_moves = game_map.get_valid_moves(game_map.last_pos)
         if not valid_moves:
             break
@@ -222,11 +222,13 @@ def eval_genome(genome, config, cnn):
                 valid_scores.append(direction_scores[idx])
         if not valid_scores:
             break
-        direction_idx = valid_indices[np.argmax(valid_scores)]
+        valid_probs = softmax(valid_scores)  # Convert scores to probabilities
+        direction_idx = np.random.choice(valid_indices, p=valid_probs)
         new_pos = valid_moves[valid_indices.index(direction_idx)]
 
-        # Select tile type using argmax
-        tile_type = np.argmax(tile_probs)
+        # Probabilistic tile selection
+        tile_probs = softmax(tile_probs)
+        tile_type = np.random.choice(list(TILE_TYPES.values()), p=tile_probs)
 
         # Place tile
         game_map.place_tile(new_pos, tile_type)
