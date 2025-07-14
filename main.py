@@ -8,6 +8,7 @@ from scipy.sparse.csgraph import dijkstra
 from scipy.ndimage import label
 import os
 from datetime import datetime
+import pickle
 
 # Constants
 GRID_SIZE = 20  # Use 20x20 for faster testing (change to 100x100 for final)
@@ -16,7 +17,9 @@ TILE_TYPES = {'EMPTY': 0, 'WALL': 1, 'PATH': 2, 'START': 3, 'END': 4}
 MAX_STEPS = GRID_SIZE * GRID_SIZE  # Maximum tiles to place
 NUM_GENERATIONS = 100
 SAVE_DIR = "maps"
+CHECKPOINT_DIR = "checkpoints"
 os.makedirs(SAVE_DIR, exist_ok=True)
+os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
 # Map class to manage tilemap state
 class Map:
@@ -191,14 +194,18 @@ def eval_genome(genome, config, cnn):
 
 
 # Main training loop
-def train_neat():
+def train_neat(resume_checkpoint=None):
     # Initialize CNN
     cnn = TileCNN()
 
     # Load NEAT configuration
-    config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
-                         neat.DefaultSpeciesSet, neat.DefaultStagnation,
-                         'neat.cfg')
+    config = neat.Config(
+        neat.DefaultGenome,
+        neat.DefaultReproduction,
+        neat.DefaultSpeciesSet,
+        neat.DefaultStagnation,
+        'neat.cfg'
+    )
 
     # Create population
     pop = neat.Population(config)
@@ -206,29 +213,73 @@ def train_neat():
     stats = neat.StatisticsReporter()
     pop.add_reporter(stats)
 
+    # Create or restore population
+    if resume_checkpoint:
+        pop = neat.Checkpointer.restore_checkpoint(resume_checkpoint)
+        print(f"Resumed from checkpoint: {resume_checkpoint}")
+    else:
+        pop = neat.Population(config)
+
+    # Add reporters
+    pop.add_reporter(neat.StdOutReporter(True))
+    stats = neat.StatisticsReporter()
+    checkpointer = neat.Checkpointer(
+        generation_interval=10,
+        time_interval_seconds=None,
+        filename_prefix=f"{CHECKPOINT_DIR}/neat-checkpoint-"
+    )
+    pop.add_reporter(stats)
+    pop.add_reporter(checkpointer)
+
     # Best genome tracking
     best_genome = None
     best_fitness = -float('inf')
+    best_tilemap = None
 
     def eval_genomes(genomes, config):
-        nonlocal best_genome, best_fitness
+        # Evaluate each genome in generation
+        nonlocal best_genome, best_fitness, best_tilemap
         for genome_id, genome in genomes:
             fitness, tilemap = eval_genome(genome, config, cnn)
             genome.fitness = fitness
             if fitness > best_fitness:
                 best_fitness = fitness
                 best_genome = genome
-                # Visualize and save best map
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                visualize_map(tilemap, f"{SAVE_DIR}/gen_{pop.generation}_fitness_{fitness:.2f}_{timestamp}.png")
+                best_tilemap = tilemap
+
+        # Visualize and save best map
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        map_filename = f"{SAVE_DIR}/gen-{pop.generation}_fitness-{best_fitness:.2f}_{timestamp}.png"
+        visualize_map(best_tilemap, map_filename)
+
+        # Save best genome
+        genome_filename = f"{CHECKPOINT_DIR}/genome_gen-{pop.generation}_fitness-{best_fitness:.2f}.pkl"
+        with open(genome_filename, 'wb') as f:
+            pickle.dump(best_genome, f)
+        print(f"Saved best genome to {genome_filename}")
 
     # Run NEAT
     winner = pop.run(eval_genomes, NUM_GENERATIONS)
+
+    # Save final best genome
+    final_genome_filename = f"{CHECKPOINT_DIR}/final-genome_fitness-{best_fitness:.2f}.pkl"
+    with open(final_genome_filename, 'wb') as f:
+        pickle.dump(best_genome, f)
+    print(f"Saved final best genome to {final_genome_filename}")
     return winner
 
+# Function to load and evaluate a saved genome
+def evaluate_saved_genome(genome_file, config_file='neat.cfg'):
+    pass
 
 # Run the training
 if __name__ == "__main__":
     # Train the model
     winner = train_neat()
     print("Training complete. Best fitness:", winner.fitness)
+
+    # Option 2: Resume from checkpoint
+    # winner = train_neat(resume_checkpoint="checkpoints/neat-checkpoint-10")
+
+    # Option 3: Evaluate a saved genome
+    # evaluate_saved_genome("checkpoints/best_genome_gen_10_fitness_0.85.pkl")
